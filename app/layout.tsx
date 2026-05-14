@@ -45,7 +45,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning className={`${inter.variable} ${jetbrains.variable}`}>
       <body suppressHydrationWarning className="font-sans antialiased bg-background">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem enableColorScheme={false}>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} enableColorScheme={false}>
           <WalletProvider>{children}</WalletProvider>
           <Toaster position="bottom-right" />
           {process.env.NODE_ENV === "production" && <Analytics />}
