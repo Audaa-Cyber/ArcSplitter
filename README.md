@@ -8,7 +8,6 @@ ArcSplitter V2 is a Next.js Web3 app for splitting USDC payments across multiple
 - Splits a single USDC payment to up to 20 recipient wallets.
 - Supports fixed-amount and percentage-based splits.
 - Uses Arc Testnet for development and testing.
-- Includes an admin-only analytics page for authorized wallet addresses.
 - Supports light/dark theme switching.
 
 
