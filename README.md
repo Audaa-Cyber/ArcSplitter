@@ -1,4 +1,4 @@
-# ArcSplitter
+# ArcSplitter V2
 
 ArcSplitter V2 is a Next.js Web3 app for splitting USDC payments across multiple wallets in a single transaction.
 
@@ -20,3 +20,8 @@ ArcSplitter V2 is a Next.js Web3 app for splitting USDC payments across multiple
 - `next-themes` for theme management
 - `viem` / `ethers` for blockchain interactions
 - Shadcn-based UI components
+
+
+
+
+
