@@ -20,6 +20,10 @@ ArcSplitter is a Next.js Web3 app for splitting USDC payments across multiple wa
 - `viem` / `ethers` for blockchain interactions
 - Shadcn-based UI components
 
+## SDK
+
+A reusable SDK is available at `sdk/` for integrating ArcSplitter split logic into other applications. It exports validation, amount computation, contract helpers, and send/receipt helpers for ArcSplitter.
+
 
 
 
