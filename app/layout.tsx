@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { WalletProvider } from "@/components/wallet-provider"
 import { ThemeProvider } from "@/components/theme-provider"
+import { OnboardingModal } from "@/components/onboarding-modal"
 import { Toaster } from "sonner"
 import "./globals.css"
 
@@ -47,6 +48,7 @@ export default function RootLayout({
       <body suppressHydrationWarning className="font-sans antialiased bg-background">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} enableColorScheme={false}>
           <WalletProvider>{children}</WalletProvider>
+          <OnboardingModal />
           <Toaster position="bottom-right" />
           {process.env.NODE_ENV === "production" && <Analytics />}
         </ThemeProvider>

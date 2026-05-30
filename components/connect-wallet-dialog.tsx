@@ -15,8 +15,39 @@ import { useWallet } from "@/components/wallet-provider"
 import { Loader2, ArrowRight, Wallet } from "lucide-react"
 import { cn } from "@/lib/utils"
 
+type EIP6963ProviderInfo = {
+  uuid: string
+  name: string
+  icon: string
+  rdns: string
+}
+
+type EIP6963ProviderDetail = {
+  info: EIP6963ProviderInfo
+  provider: any
+}
+
+function useEIP6963Wallets() {
+  const [wallets, setWallets] = React.useState<EIP6963ProviderDetail[]>([])
+
+  React.useEffect(() => {
+    const handler = (event: any) => {
+      setWallets((prev) => {
+        const exists = prev.find((w) => w.info.uuid === event.detail.info.uuid)
+        if (exists) return prev
+        return [...prev, event.detail]
+      })
+    }
+    window.addEventListener("eip6963:announceProvider", handler)
+    window.dispatchEvent(new Event("eip6963:requestProvider"))
+    return () => window.removeEventListener("eip6963:announceProvider", handler)
+  }, [])
+
+  return wallets
+}
+
 type WalletOption = {
-  id: "metamask" | "coinbase" | "injected"
+  id: "metamask" | "coinbase" | "injected" | "rabby"
   label: string
   description: string
   src: string
@@ -41,6 +72,12 @@ const WALLETS: WalletOption[] = [
     description: "Scan with any mobile wallet",
     src: "/wallets/walletconnect.png",
   },
+  {
+    id: "rabby",
+    label: "Rabby Wallet",
+    description: "Smart wallet for DeFi power users",
+    src: "/wallets/rabby.png",
+  },
 ]
 
 type Props = {
@@ -52,8 +89,9 @@ type Props = {
 
 export function ConnectWalletDialog({ open, onOpenChange, redirectTo = "/app" }: Props) {
   const router = useRouter()
-  const { connect, isConnecting, isConnected } = useWallet()
-  const [pending, setPending] = React.useState<WalletOption["id"] | null>(null)
+  const { connect, connectWithProvider, connectWalletConnect, isConnecting, isConnected } = useWallet()
+  const [pending, setPending] = React.useState<string | null>(null)
+  const detectedWallets = useEIP6963Wallets()
 
   // After a connection completes while the dialog is open, redirect.
   React.useEffect(() => {
@@ -66,7 +104,11 @@ export function ConnectWalletDialog({ open, onOpenChange, redirectTo = "/app" }:
   async function pick(id: WalletOption["id"]) {
     setPending(id)
     try {
-      await connect(id)
+      if (id === "injected") {
+        await connectWalletConnect()
+      } else {
+        await connect(id)
+      }
     } finally {
       setPending(null)
     }
@@ -98,42 +140,97 @@ export function ConnectWalletDialog({ open, onOpenChange, redirectTo = "/app" }:
           </div>
         </div>
 
-        <div className="space-y-3 p-4">
-          {WALLETS.map((w) => {
-            const isPending = pending === w.id && isConnecting
-            return (
-              <button
-                key={w.id}
-                type="button"
-                onClick={() => pick(w.id)}
-                disabled={isConnecting}
-                className={cn(
-                  "group flex w-full items-center gap-4 rounded-2xl border border-border bg-background p-3 text-left transition-all",
-                  "hover:border-[#00fdff] hover:shadow-[0_8px_30px_-12px_rgba(0,253,255,0.45)]",
-                  "disabled:opacity-60",
-                )}
-              >
-                <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-background overflow-hidden">
-                  <Image
-                    src={w.src}
-                    alt={`${w.label} logo`}
-                    width={32}
-                    height={32}
-                    className="h-7 w-7 object-contain"
-                  />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium tracking-tight">{w.label}</div>
-                  <div className="text-xs text-muted-foreground">{w.description}</div>
-                </div>
-                {isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                ) : (
-                  <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-                )}
-              </button>
-            )
-          })}
+        <div className="space-y-4 p-4 overflow-y-auto max-h-[380px]">
+          {detectedWallets.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1">Installed</div>
+              <div className="space-y-2">
+                {detectedWallets.map((w) => {
+                  const isPending = pending === w.info.uuid && isConnecting
+                  return (
+                    <button
+                      key={w.info.uuid}
+                      type="button"
+                      onClick={async () => {
+                        setPending(w.info.uuid)
+                        try {
+                          await connectWithProvider(w.provider)
+                        } finally {
+                          setPending(null)
+                        }
+                      }}
+                      disabled={isConnecting}
+                      className={cn(
+                        "group flex w-full items-center gap-4 rounded-2xl border border-border bg-background p-3 text-left transition-all",
+                        "hover:border-[#00fdff] hover:shadow-[0_8px_30px_-12px_rgba(0,253,255,0.45)]",
+                        "disabled:opacity-60",
+                      )}
+                    >
+                      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-border bg-white overflow-hidden p-1">
+                        <img
+                          src={w.info.icon}
+                          alt={`${w.info.name} logo`}
+                          className="h-full w-full object-contain"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium tracking-tight">{w.info.name}</div>
+                        <div className="text-xs text-muted-foreground">{w.info.rdns}</div>
+                      </div>
+                      {isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : (
+                        <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            {detectedWallets.length > 0 && (
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1">Popular</div>
+            )}
+            <div className="space-y-2">
+              {WALLETS.map((w) => {
+                const isPending = pending === w.id && isConnecting
+                return (
+                  <button
+                    key={w.id}
+                    type="button"
+                    onClick={() => pick(w.id)}
+                    disabled={isConnecting}
+                    className={cn(
+                      "group flex w-full items-center gap-4 rounded-2xl border border-border bg-background p-3 text-left transition-all",
+                      "hover:border-[#00fdff] hover:shadow-[0_8px_30px_-12px_rgba(0,253,255,0.45)]",
+                      "disabled:opacity-60",
+                    )}
+                  >
+                    <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-border bg-white overflow-hidden p-1">
+                      <Image
+                        src={w.src}
+                        alt={`${w.label} logo`}
+                        width={44}
+                        height={44}
+                        className="h-full w-full object-contain"
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium tracking-tight">{w.label}</div>
+                      <div className="text-xs text-muted-foreground">{w.description}</div>
+                    </div>
+                    {isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    ) : (
+                      <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         </div>
 
         <div className="border-t border-border bg-muted/30 px-6 py-4 text-center text-[11px] leading-relaxed text-muted-foreground">

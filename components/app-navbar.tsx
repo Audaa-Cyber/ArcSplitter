@@ -27,7 +27,7 @@ const tabs = [
 
 export function AppNavbar() {
   const pathname = usePathname()
-  const { address, balance, isConnected, disconnect } = useWallet()
+  const { address, balance, isConnected, disconnect, switchWallet, walletType } = useWallet()
   const [connectOpen, setConnectOpen] = React.useState(false)
 
   return (
@@ -104,6 +104,17 @@ export function AppNavbar() {
                       <ExternalLink className="mr-2 h-4 w-4" />
                       View on Arcscan
                     </a>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">Switch Wallet</div>
+                  <DropdownMenuItem onClick={() => switchWallet("metamask")}>
+                    Switch to MetaMask
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => switchWallet("coinbase")}>
+                    Switch to Coinbase
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => switchWallet("rabby")}>
+                    Switch to Rabby
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={disconnect} className="text-destructive focus:text-destructive">

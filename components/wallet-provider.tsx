@@ -4,6 +4,7 @@ import * as React from "react"
 import { createPublicClient, http, formatUnits, type Address } from "viem"
 import { ARC_TESTNET, walletAddArcTestnetParams } from "@/lib/arc-config"
 import { toast } from "sonner"
+import EthereumProviderWC from "@walletconnect/ethereum-provider"
 
 type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] | object }) => Promise<any>
@@ -11,6 +12,7 @@ type EthereumProvider = {
   removeListener?: (event: string, handler: (...args: any[]) => void) => void
   isMetaMask?: boolean
   isCoinbaseWallet?: boolean
+  isRabby?: boolean
 }
 
 declare global {
@@ -29,11 +31,15 @@ type WalletState = {
 }
 
 type WalletContextValue = WalletState & {
-  connect: (preferred?: "metamask" | "coinbase" | "injected") => Promise<void>
+  connect: (preferred?: "metamask" | "coinbase" | "injected" | "rabby") => Promise<void>
+  connectWithProvider: (provider: EthereumProvider) => Promise<void>
+  connectWalletConnect: () => Promise<void>
+  switchWallet: (preferred: "metamask" | "coinbase" | "rabby" | "injected") => Promise<void>
   disconnect: () => void
   switchNetwork: () => Promise<void>
   refreshBalance: () => Promise<void>
   provider: EthereumProvider | null
+  walletType: string | null
 }
 
 const WalletContext = React.createContext<WalletContextValue | null>(null)
@@ -54,27 +60,40 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [balance, setBalance] = React.useState<string>("0.00")
   const [isConnecting, setIsConnecting] = React.useState(false)
   const [provider, setProvider] = React.useState<EthereumProvider | null>(null)
+  const [walletType, setWalletType] = React.useState<string | null>(null)
 
   const isConnected = !!address
   const isCorrectNetwork = chainId === ARC_TESTNET.chainId
 
   const getInjectedProvider = React.useCallback(
-    (preferred?: "metamask" | "coinbase" | "injected"): EthereumProvider | null => {
+    (preferred?: "metamask" | "coinbase" | "injected" | "rabby"): EthereumProvider | null => {
       if (typeof window === "undefined") return null
       const eth = window.ethereum as any
       if (!eth) return null
-      // EIP-6963 style multi-provider
-      const providers = eth.providers as EthereumProvider[] | undefined
-      if (providers && providers.length) {
-        if (preferred === "metamask") {
-          return providers.find((p) => p.isMetaMask) ?? providers[0]
-        }
-        if (preferred === "coinbase") {
-          return providers.find((p) => p.isCoinbaseWallet) ?? providers[0]
-        }
-        return providers[0]
+
+      // Collect all providers from EIP-6963 and legacy eth.providers
+      const allProviders: EthereumProvider[] = []
+      if (eth.providers && Array.isArray(eth.providers)) {
+        allProviders.push(...eth.providers)
+      } else {
+        allProviders.push(eth)
       }
-      return eth as EthereumProvider
+
+      if (preferred === "rabby") {
+        const p = allProviders.find((p: any) => p.isRabby)
+        if (!p) {
+          toast.error("Rabby Wallet not detected. Install it from rabby.io")
+          return null
+        }
+        return p
+      }
+      if (preferred === "metamask") {
+        return allProviders.find((p: any) => p.isMetaMask && !p.isRabby) ?? null
+      }
+      if (preferred === "coinbase") {
+        return allProviders.find((p: any) => p.isCoinbaseWallet) ?? null
+      }
+      return allProviders[0] ?? eth
     },
     [],
   )
@@ -116,16 +135,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setChainId(parseChainId(cid))
   }, [])
 
-  const connect = React.useCallback(
-    async (preferred?: "metamask" | "coinbase" | "injected") => {
-      const inj = getInjectedProvider(preferred)
-      if (!inj) {
-        toast.error("No wallet detected. Install MetaMask or Coinbase Wallet.")
-        return
-      }
+  const connectWithProvider = React.useCallback(
+    async (inj: EthereumProvider) => {
       setIsConnecting(true)
       try {
-        const accounts: string[] = await inj.request({ method: "eth_requestAccounts" })
+        const accounts: string[] = await Promise.race([
+          inj.request({ method: "eth_requestAccounts" }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Connection timeout")), 30000)
+          ),
+        ]) as string[]
         const cid: string = await inj.request({ method: "eth_chainId" })
         setProvider(inj)
         setAddress((accounts[0] as Address) ?? null)
@@ -137,14 +156,116 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem("arc:wallet:connected", "1")
         }
       } catch (err: any) {
+        console.log("[v0] connect with provider failed", err)
+        if (err?.message === "Connection timeout") {
+          toast.error("Connection timed out. Please check your Rabby Wallet and try again")
+        } else {
+          toast.error(err?.message || "Failed to connect wallet")
+        }
+      } finally {
+        setIsConnecting(false)
+      }
+    },
+    [handleAccountsChanged, handleChainChanged],
+  )
+
+  const connect = React.useCallback(
+    async (preferred?: "metamask" | "coinbase" | "injected" | "rabby") => {
+      const inj = getInjectedProvider(preferred)
+      if (!inj) {
+        if (preferred === "rabby") {
+          return
+        }
+        toast.error("No wallet detected. Install MetaMask, Coinbase Wallet, or Rabby Wallet.")
+        return
+      }
+      setIsConnecting(true)
+      try {
+        const accounts: string[] = await Promise.race([
+          inj.request({ method: "eth_requestAccounts" }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Connection timeout")), 30000)
+          ),
+        ]) as string[]
+        const cid: string = await inj.request({ method: "eth_chainId" })
+        setProvider(inj)
+        setWalletType(preferred ?? "injected")
+        setAddress((accounts[0] as Address) ?? null)
+        setChainId(parseChainId(cid))
+        // attach listeners
+        inj.on?.("accountsChanged", handleAccountsChanged)
+        inj.on?.("chainChanged", handleChainChanged)
+        if (typeof window !== "undefined") {
+          localStorage.setItem("arc:wallet:connected", "1")
+        }
+      } catch (err: any) {
         console.log("[v0] connect failed", err)
-        toast.error(err?.message || "Failed to connect wallet")
+        if (err?.message === "Connection timeout") {
+          toast.error("Connection timed out. Please check your Rabby Wallet and try again")
+        } else {
+          toast.error(err?.message || "Failed to connect wallet")
+        }
       } finally {
         setIsConnecting(false)
       }
     },
     [getInjectedProvider, handleAccountsChanged, handleChainChanged],
   )
+
+  const connectWalletConnect = React.useCallback(async () => {
+    setIsConnecting(true)
+    try {
+      const wcProvider = await EthereumProviderWC.init({
+        projectId: "ce7bbdc6078163566737ea1b3ec721cc",
+        chains: [5042002],
+        optionalChains: [5042002],
+        showQrModal: true,
+        metadata: {
+          name: "ArcSplitter",
+          description: "Split USDC across multiple wallets on Arc Testnet",
+          url: "https://arc-splitter.vercel.app",
+          icons: ["https://arc-splitter.vercel.app/brand/arcsplitter.jpg"],
+        },
+      })
+      await wcProvider.connect()
+      const accounts = wcProvider.accounts
+      const chainId = wcProvider.chainId
+      setProvider(wcProvider as any)
+      setWalletType("walletconnect")
+      setAddress((accounts[0] as Address) ?? null)
+      setChainId(chainId)
+      wcProvider.on("accountsChanged", handleAccountsChanged)
+      wcProvider.on("chainChanged", handleChainChanged)
+      wcProvider.on("disconnect", () => {
+        setAddress(null)
+        setChainId(null)
+        setBalance("0.00")
+        setProvider(null)
+        localStorage.removeItem("arc:wallet:connected")
+      })
+      localStorage.setItem("arc:wallet:connected", "1")
+      toast.success("WalletConnect connected!")
+    } catch (err: any) {
+      console.log("[wc] connect failed", err)
+      toast.error(err?.message || "WalletConnect failed")
+    } finally {
+      setIsConnecting(false)
+    }
+  }, [handleAccountsChanged, handleChainChanged])
+
+  const switchWallet = React.useCallback(async (preferred: "metamask" | "coinbase" | "rabby" | "injected") => {
+    if (provider) {
+      provider.removeListener?.("accountsChanged", handleAccountsChanged)
+      provider.removeListener?.("chainChanged", handleChainChanged)
+    }
+    setAddress(null)
+    setChainId(null)
+    setBalance("0.00")
+    setProvider(null)
+    setWalletType(null)
+    await connect(preferred)
+    toast.success("Wallet switched successfully!")
+  }, [provider, connect, handleAccountsChanged, handleChainChanged])
 
   const disconnect = React.useCallback(() => {
     if (provider) {
@@ -227,10 +348,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     isConnected,
     isCorrectNetwork,
     connect,
+    connectWithProvider,
+    connectWalletConnect,
+    switchWallet,
     disconnect,
     switchNetwork,
     refreshBalance,
     provider,
+    walletType,
   }
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>

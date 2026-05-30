@@ -4,7 +4,7 @@
 
 export const ARC_TESTNET = {
   chainId: 5042002,
-  chainIdHex: "0x4cf1b2",
+  chainIdHex: "0x4cef52",
   name: "Arc Testnet",
   rpcUrl: "https://rpc.testnet.arc.network",
   explorerUrl: "https://testnet.arcscan.app",

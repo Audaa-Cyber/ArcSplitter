@@ -92,9 +92,11 @@ export function SplitterCard() {
       return
     }
     setTx({ kind: "sending" })
+    toast.loading("Sending transaction...", { id: "tx" })
     try {
       const hash = await sendSplit({ from: address, recipients, total, mode, provider })
       setTx({ kind: "confirming", hash })
+      toast.loading("Waiting for confirmation...", { id: "tx" })
 
       appendHistory(address, {
         txHash: hash,
@@ -119,13 +121,29 @@ export function SplitterCard() {
           fee: breakdown.fee,
           recipientTotal: breakdown.recipientTotal,
         })
+        toast.success("Payment sent!", {
+          id: "tx",
+          description: "View on Arcscan",
+          action: {
+            label: "View",
+            onClick: () => window.open(`${ARC_TESTNET.explorerUrl}/tx/${hash}`, "_blank"),
+          },
+        })
         refreshBalance()
       } else {
         setTx({ kind: "failed", message: "The transaction did not go through. Your funds are still in your wallet." })
+        toast.error("Transaction failed", {
+          id: "tx",
+          description: "Your funds are still in your wallet.",
+        })
       }
     } catch (err: any) {
       console.log("[v0] send failed", err)
       setTx({ kind: "failed", message: err?.shortMessage || err?.message || "Transaction failed." })
+      toast.error("Transaction failed", {
+        id: "tx",
+        description: err?.shortMessage || err?.message || "Something went wrong.",
+      })
     }
   }
 
