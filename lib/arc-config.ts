@@ -44,3 +44,33 @@ export const SPLITTER_ABI = [
   "function splitPercentage(address[] recipients, uint256[] percentages) payable",
   "event SplitExecuted(address indexed sender, uint256 totalSent, uint256 recipientTotal, uint256 feeAmount, address treasury, uint8 mode, address[] recipients, uint256[] amounts, uint256 timestamp)",
 ] as const
+
+// ─── Swap / DEX (Presto Hub AMM) ─────────────────────────────────────────────
+export const SWAP_CONTRACTS = {
+  HUB_AMM: "0x5794a8284A29493871Fbfa3c4f343D42001424D6" as `0x${string}`,
+  EURC: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a" as `0x${string}`,
+  USDC_ERC20: "0x3600000000000000000000000000000000000000" as `0x${string}`,
+} as const
+
+export const SIMPLE_POOL = {
+  address: "0x18eAE2e870Ec4Bc31a41B12773c4F5c40Bf19aCD" as `0x${string}`,
+  token0: "0x3600000000000000000000000000000000000000" as `0x${string}`, // USDC
+  token1: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a" as `0x${string}`, // EURC
+} as const
+
+export const SWAP_TOKENS = [
+  {
+    symbol: "USDC",
+    name: "USD Coin",
+    address: "0x3600000000000000000000000000000000000000" as `0x${string}`,
+    decimals: 6,
+    logo: "https://cryptologos.cc/logos/usd-coin-usdc-logo.svg?v=040",
+  },
+  {
+    symbol: "EURC",
+    name: "Euro Coin",
+    address: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a" as `0x${string}`,
+    decimals: 6,
+    logo: "/tokens/eurc.png",
+  },
+] as const

@@ -13,7 +13,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Plus, X, AlertCircle, Loader2, ExternalLink, Save, FolderOpen, ArrowRight, Wallet, Tag, User } from "lucide-react"
+import { Plus, X, AlertCircle, Loader2, ExternalLink, Save, FolderOpen, ArrowRight, Wallet, Tag, User, Zap, Download, Share2, Link2, Check } from "lucide-react"
+import { SwapModal } from "@/components/swap-modal"
+import { getEURCBalance } from "@/lib/swap"
 import { AllocationDonut } from "@/components/allocation-donut"
 import { ConnectWalletDialog } from "@/components/connect-wallet-dialog"
 import { useWallet } from "@/components/wallet-provider"
@@ -45,22 +47,75 @@ function newRecipient(): Recipient {
   return { address: "", amount: "", label: "" }
 }
 
-export function SplitterCard() {
+export function SplitterCard({
+  prefillTotal,
+  prefillMode,
+  prefillRecipients,
+}: {
+  prefillTotal?: string
+  prefillMode?: "fixed" | "percentage"
+  prefillRecipients?: { address: string; amount: string; label: string }[]
+} = {}) {
   const { address, isConnected, isCorrectNetwork, provider, refreshBalance, balance } = useWallet()
 
-  const [mode, setMode] = React.useState<Mode>("fixed")
-  const [total, setTotal] = React.useState<string>("")
-  const [recipients, setRecipients] = React.useState<Recipient[]>([newRecipient(), newRecipient()])
+  const [mode, setMode] = React.useState<Mode>(prefillMode ?? "fixed")
+  const [total, setTotal] = React.useState<string>(prefillTotal ?? "")
+  const [recipients, setRecipients] = React.useState<Recipient[]>(prefillRecipients && prefillRecipients.length > 0 ? prefillRecipients : [newRecipient(), newRecipient()])
   const [tx, setTx] = React.useState<TxState>({ kind: "idle" })
   const [saveOpen, setSaveOpen] = React.useState(false)
   const [groupName, setGroupName] = React.useState("")
   const [loadOpen, setLoadOpen] = React.useState(false)
   const [groups, setGroups] = React.useState<SavedGroup[]>([])
   const [connectOpen, setConnectOpen] = React.useState(false)
+  const [swapOpen, setSwapOpen] = React.useState(false)
+  const [swapNeeded, setSwapNeeded] = React.useState("0")
+  const [eurcBalance, setEurcBalance] = React.useState<string>("0.00")
+  const [autoSwapOpen, setAutoSwapOpen] = React.useState(false)
+  const [pendingSend, setPendingSend] = React.useState(false)
+
+  React.useEffect(() => {
+    if (prefillTotal) setTotal(prefillTotal)
+    if (prefillMode) setMode(prefillMode)
+    if (prefillRecipients && prefillRecipients.length > 0) {
+      setRecipients(prefillRecipients)
+    }
+  }, [])
+
 
   React.useEffect(() => {
     if (address) setGroups(loadGroups(address))
   }, [address, saveOpen, loadOpen])
+
+  React.useEffect(() => {
+    if (!address) return
+    getEURCBalance(address as any).then(setEurcBalance)
+    const interval = setInterval(() => {
+      getEURCBalance(address as any).then(setEurcBalance)
+    }, 12000)
+    return () => clearInterval(interval)
+  }, [address])
+
+  React.useEffect(() => {
+    if (mode !== "fixed") return
+    const sum = recipients.reduce((acc, r) => acc + (Number(r.amount) || 0), 0)
+    if (sum > 0) {
+      setTotal(sum.toString())
+    }
+  }, [recipients, mode])
+
+  React.useEffect(() => {
+    if (mode === "percentage") {
+      setTotal("")
+    }
+  }, [mode])
+
+  React.useEffect(() => {
+    if (!pendingSend) return
+    if (!swapOpen) {
+      // swap modal just closed with pendingSend=true — trigger send
+      handleSend()
+    }
+  }, [pendingSend, swapOpen])
 
   const sum = recipients.reduce((acc, r) => acc + (Number(r.amount) || 0), 0)
   const totalNum = Number(total) || 0
@@ -91,6 +146,26 @@ export function SplitterCard() {
       toast.error(validation.errors[0])
       return
     }
+
+    // Auto-swap check: if insufficient USDC but enough EURC, offer to swap
+    const needed = breakdown.grandTotal
+    const usdcBal = Number(balance)
+    const eurcBal = Number(eurcBalance)
+
+    if (usdcBal < needed && !pendingSend) {
+      const deficit = needed - usdcBal
+      if (eurcBal >= deficit * 1.01) {
+        // enough EURC to cover (with 1% buffer for rate)
+        setSwapNeeded(deficit.toFixed(6))
+        setAutoSwapOpen(true)
+        return
+      } else {
+        toast.error(`Insufficient balance. You need ${deficit.toFixed(4)} more USDC and don't have enough EURC to swap.`)
+        return
+      }
+    }
+
+    setPendingSend(false)
     setTx({ kind: "sending" })
     toast.loading("Sending transaction...", { id: "tx" })
     try {
@@ -389,6 +464,35 @@ export function SplitterCard() {
             </div>
           )}
 
+          {/* Insufficient USDC banner */}
+          {isConnected && isCorrectNetwork && breakdown.grandTotal > 0 && Number(balance) < breakdown.grandTotal && (
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-4 py-3">
+              <div className="flex items-start gap-2 text-xs text-amber-900 dark:text-amber-300">
+                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+                <span>
+                  You need{" "}
+                  <span className="font-semibold font-mono">
+                    {(breakdown.grandTotal - Number(balance)).toFixed(2)} more USDC
+                  </span>{" "}
+                  to complete this split.
+                </span>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 shrink-0 border-amber-300 text-xs hover:bg-amber-100 dark:border-amber-700 dark:hover:bg-amber-900/40"
+                onClick={() => {
+                  setSwapNeeded((breakdown.grandTotal - Number(balance)).toFixed(2))
+                  setSwapOpen(true)
+                }}
+              >
+                <Zap className="mr-1 h-3 w-3" />
+                Swap here
+              </Button>
+            </div>
+          )}
+
           {/* CTA */}
           <div className="pt-2">
             {!isConnected ? (
@@ -516,6 +620,50 @@ export function SplitterCard() {
       </Dialog>
 
       <ConnectWalletDialog open={connectOpen} onOpenChange={setConnectOpen} redirectTo={null} />
+      <SwapModal
+        open={swapOpen}
+        onOpenChange={setSwapOpen}
+        defaultAmountIn={swapNeeded}
+        onSwapComplete={() => {
+          setSwapOpen(false)
+          refreshBalance()
+          if (address) getEURCBalance(address as any).then(setEurcBalance)
+        }}
+      />
+
+      {/* Auto-swap dialog */}
+      <Dialog open={autoSwapOpen} onOpenChange={setAutoSwapOpen}>
+        <DialogContent className="sm:max-w-[380px]">
+          <DialogHeader>
+            <DialogTitle>Insufficient USDC</DialogTitle>
+            <DialogDescription>
+              You need <span className="font-mono font-medium text-foreground">{Number(swapNeeded).toFixed(4)} USDC</span> more to complete this split.
+              You have <span className="font-mono font-medium text-foreground">{Number(eurcBalance).toFixed(4)} EURC</span> available.
+              Swap the exact amount needed and proceed automatically?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 sm:flex-row">
+            <Button
+              variant="outline"
+              onClick={() => setAutoSwapOpen(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setAutoSwapOpen(false)
+                setSwapNeeded(Number(swapNeeded).toFixed(6))
+                setPendingSend(true)
+                setSwapOpen(true)
+              }}
+              className="flex-1 bg-foreground text-background hover:bg-foreground/90"
+            >
+              Swap &amp; Send
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }
@@ -670,6 +818,92 @@ function SuccessScreen({
     }
   }, [])
 
+  function handleDownloadReceipt() {
+    const canvas = document.createElement("canvas")
+    canvas.width = 600
+    canvas.height = 480
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    // Background
+    ctx.fillStyle = "#0a0a0a"
+    ctx.fillRect(0, 0, 600, 480)
+
+    // Cyan glow top
+    const gradient = ctx.createRadialGradient(300, 0, 0, 300, 0, 300)
+    gradient.addColorStop(0, "rgba(0,253,255,0.15)")
+    gradient.addColorStop(1, "rgba(0,253,255,0)")
+    ctx.fillStyle = gradient
+    ctx.fillRect(0, 0, 600, 480)
+
+    // Border
+    ctx.strokeStyle = "#1a1a1a"
+    ctx.lineWidth = 1
+    ctx.strokeRect(1, 1, 598, 478)
+
+    // Title
+    ctx.fillStyle = "#00fdff"
+    ctx.font = "bold 13px monospace"
+    ctx.fillText("ARCSPLITTER", 40, 50)
+
+    ctx.fillStyle = "#ffffff"
+    ctx.font = "bold 28px sans-serif"
+    ctx.fillText("Payment Receipt", 40, 85)
+
+    // Divider
+    ctx.strokeStyle = "#222222"
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(40, 105)
+    ctx.lineTo(560, 105)
+    ctx.stroke()
+
+    // Stats
+    const stats = [
+      ["Total Sent", `${total} USDC`],
+      ["Recipients", `${count} wallets`],
+      ["Recipients Got", `${formatUSDCFull(recipientTotal)} USDC`],
+      ["Platform Fee", `${formatUSDCFull(fee)} USDC (0.1%)`],
+      ["Date", new Date().toLocaleString()],
+    ]
+
+    stats.forEach(([label, value], i) => {
+      const y = 145 + i * 45
+      ctx.fillStyle = "#666666"
+      ctx.font = "12px sans-serif"
+      ctx.fillText(label.toUpperCase(), 40, y)
+      ctx.fillStyle = "#ffffff"
+      ctx.font = "bold 16px monospace"
+      ctx.fillText(value, 40, y + 20)
+    })
+
+    // Divider
+    ctx.strokeStyle = "#222222"
+    ctx.beginPath()
+    ctx.moveTo(40, 380)
+    ctx.lineTo(560, 380)
+    ctx.stroke()
+
+    // TX Hash
+    ctx.fillStyle = "#444444"
+    ctx.font = "10px monospace"
+    ctx.fillText("TX HASH", 40, 405)
+    ctx.fillStyle = "#888888"
+    ctx.font = "10px monospace"
+    ctx.fillText(hash.slice(0, 42) + "...", 40, 420)
+
+    // Footer
+    ctx.fillStyle = "#333333"
+    ctx.font = "11px sans-serif"
+    ctx.fillText("Built on Arc Network · arc.network", 40, 460)
+
+    // Download
+    const link = document.createElement("a")
+    link.download = `arcsplitter-receipt-${hash.slice(0, 8)}.png`
+    link.href = canvas.toDataURL("image/png")
+    link.click()
+  }
+
   return (
     <Card className="relative overflow-hidden border-border p-0 shadow-[0_8px_40px_-20px_rgba(0,0,0,0.18)] animate-fade-up">
       <div
@@ -746,6 +980,13 @@ function SuccessScreen({
           >
             Send another payment
           </Button>
+          <button
+            onClick={handleDownloadReceipt}
+            className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm hover:border-foreground/40 hover:bg-secondary/40 transition-colors"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Download Receipt
+          </button>
         </div>
 
         <div className="mt-6 max-w-md break-all rounded-md bg-muted/40 px-3 py-2 font-mono text-[10px] text-muted-foreground">

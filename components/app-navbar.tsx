@@ -12,7 +12,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ChevronDown, Copy, LogOut, ExternalLink } from "lucide-react"
+import { ChevronDown, Copy, LogOut, ExternalLink, User } from "lucide-react"
+import { ThemeToggle } from "@/components/theme-toggle"
 import { ARC_TESTNET } from "@/lib/arc-config"
 import { toast } from "sonner"
 import { ArcLogo } from "@/components/arc-logo"
@@ -21,14 +22,26 @@ import { formatUSDC, shortAddr } from "@/lib/format"
 
 const tabs = [
   { href: "/app", label: "Splitter" },
+  { href: "/app/swap", label: "Swap" },
   { href: "/app/groups", label: "Saved Groups" },
   { href: "/app/history", label: "History" },
+  { href: "/app/profile", label: "Profile" },
 ]
 
 export function AppNavbar() {
   const pathname = usePathname()
   const { address, balance, isConnected, disconnect, switchWallet, walletType } = useWallet()
   const [connectOpen, setConnectOpen] = React.useState(false)
+  const [username, setUsername] = React.useState<string | null>(null)
+  const [pfp, setPfp] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (!address) return
+    const savedUsername = localStorage.getItem(`arc:username:${address.toLowerCase()}`)
+    const savedPfp = localStorage.getItem(`arc:pfp:${address.toLowerCase()}`)
+    setUsername(savedUsername)
+    setPfp(savedPfp)
+  }, [address])
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background/80 backdrop-blur-md">
@@ -59,6 +72,7 @@ export function AppNavbar() {
         </div>
 
         <div className="flex items-center gap-2 md:gap-3">
+          <ThemeToggle />
           {isConnected && address ? (
             <>
               <div className="hidden items-center gap-2 rounded-full border border-border bg-secondary/50 px-3 py-1.5 text-xs md:flex">
@@ -71,11 +85,12 @@ export function AppNavbar() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-2 font-mono text-xs">
-                    <span
-                      className="h-2 w-2 rounded-full"
-                      style={{ background: "#00fdff", boxShadow: "0 0 8px #00fdff" }}
-                    />
-                    {shortAddr(address)}
+                    {pfp ? (
+                      <img src={pfp} alt="pfp" className="h-5 w-5 rounded-full object-cover" />
+                    ) : (
+                      <span className="h-2 w-2 rounded-full" style={{ background: "#00fdff", boxShadow: "0 0 8px #00fdff" }} />
+                    )}
+                    {username || shortAddr(address)}
                     <ChevronDown className="h-3.5 w-3.5" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -104,6 +119,12 @@ export function AppNavbar() {
                       <ExternalLink className="mr-2 h-4 w-4" />
                       View on Arcscan
                     </a>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/app/profile">
+                      <User className="mr-2 h-4 w-4" />
+                      My Profile
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">Switch Wallet</div>

@@ -122,7 +122,7 @@ function Hero() {
 
           <Reveal delay={380}>
             <div className="mt-12 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <ConnectWalletButton size="xl">Connect Wallet</ConnectWalletButton>
+              <ConnectWalletButton size="xl">Launch App</ConnectWalletButton>
               <a
                 href="#how"
                 className="inline-flex h-12 items-center justify-center rounded-lg px-5 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
@@ -246,7 +246,7 @@ function MiniDashboard() {
 /* ============ WALLET STRIP (sliding marquee) ============ */
 function WalletStrip() {
   const logos = [
-    { name: "ArcSplitter", src: "/brand/arcsplitter.jpg", size: 40, isBrand: true },
+    { name: "ArcSplitter", src: "/brand/arcsplitter.png", size: 40, isBrand: true },
     { name: "MetaMask", src: "/wallets/metamask.png", size: 56 },
     { name: "Coinbase Wallet", src: "/wallets/coinbase.png", size: 40 },
     { name: "WalletConnect", src: "/wallets/walletconnect.png", size: 40 },

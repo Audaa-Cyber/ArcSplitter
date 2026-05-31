@@ -224,7 +224,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           name: "ArcSplitter",
           description: "Split USDC across multiple wallets on Arc Testnet",
           url: "https://arc-splitter.vercel.app",
-          icons: ["https://arc-splitter.vercel.app/brand/arcsplitter.jpg"],
+          icons: ["https://arc-splitter.vercel.app/brand/arcsplitter.png"],
         },
       })
       await wcProvider.connect()

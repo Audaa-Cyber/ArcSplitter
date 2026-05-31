@@ -1,10 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
+  experimental: {
+    optimisticClientCache: true,
   },
   images: {
-    unoptimized: true,
+    remotePatterns: [],
   },
 }
 

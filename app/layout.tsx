@@ -24,6 +24,11 @@ export const metadata: Metadata = {
   description:
     "ArcSplitter is a USDC payment splitter built for Arc Testnet. Send to up to 20 wallets in a single transaction. Built for teams, DAOs, and on-chain payroll.",
   generator: "v0.app",
+  icons: {
+    icon: "/brand/arcsplitter.png",
+    shortcut: "/brand/arcsplitter.png",
+    apple: "/brand/arcsplitter.png",
+  },
   openGraph: {
     title: "ArcSplitter USDC payment splitter for Arc Testnet",
     description:
@@ -44,7 +49,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${jetbrains.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${jetbrains.variable}`} style={{ scrollBehavior: "smooth" }} data-scroll-behavior="smooth">
       <body suppressHydrationWarning className="font-sans antialiased bg-background">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} enableColorScheme={false}>
           <WalletProvider>{children}</WalletProvider>
