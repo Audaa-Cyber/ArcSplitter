@@ -245,7 +245,13 @@ function MiniDashboard() {
 
 /* ============ WALLET STRIP (sliding marquee) ============ */
 function WalletStrip() {
-  const logos = [
+  const logos: {
+    name: string
+    src: string
+    size: number
+    isBrand?: boolean
+    wide?: boolean
+  }[] = [
     { name: "ArcSplitter", src: "/brand/arcsplitter.png", size: 40, isBrand: true },
     { name: "MetaMask", src: "/wallets/metamask.png", size: 56 },
     { name: "Coinbase Wallet", src: "/wallets/coinbase.png", size: 40 },

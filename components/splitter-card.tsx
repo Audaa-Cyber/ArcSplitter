@@ -81,6 +81,28 @@ export function SplitterCard({
     }
   }, [])
 
+  // Listen for AI-driven preview events
+  React.useEffect(() => {
+    function onPreview(e: any) {
+      try {
+        const tx = e?.detail
+        if (!tx) return
+        if (tx.type === "split") {
+          if (tx.total) setTotal(String(tx.total))
+          if (tx.mode) setMode(tx.mode)
+          if (tx.recipients && Array.isArray(tx.recipients)) {
+            setRecipients(tx.recipients.map((r: any) => ({ address: r.address, amount: String(r.amount ?? ""), label: r.alias ?? "" })))
+          }
+          toast.success("Loaded split preview from AI")
+        }
+      } catch (err) {
+        console.log("ai preview failed", err)
+      }
+    }
+    window.addEventListener("aiPreview", onPreview as any)
+    return () => window.removeEventListener("aiPreview", onPreview as any)
+  }, [address])
+
 
   React.useEffect(() => {
     if (address) setGroups(loadGroups(address))

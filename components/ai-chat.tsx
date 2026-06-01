@@ -12,7 +12,7 @@ type Message = {
   content: string
 }
 
-
+const BOT_NAME = "pengo"
 const DAILY_KEY = (addr: string) => `arc:ai:daily:${addr.toLowerCase()}:${new Date().toDateString()}` 
 
 const SUGGESTIONS = [
@@ -39,6 +39,7 @@ export function AIChat() {
   const [input, setInput] = React.useState("")
   const [loading, setLoading] = React.useState(false)
   const [dailyCount, setDailyCount] = React.useState(0)
+  const [botAvatar, setBotAvatar] = React.useState<string | null>(null)
   const bottomRef = React.useRef<HTMLDivElement>(null)
   const inputRef = React.useRef<HTMLInputElement>(null)
 
@@ -54,6 +55,8 @@ export function AIChat() {
     if (!address) return
     const count = parseInt(localStorage.getItem(DAILY_KEY(address)) ?? "0")
     setDailyCount(count)
+    const savedAvatar = localStorage.getItem(`arc:pfp:${address.toLowerCase()}`)
+    setBotAvatar(savedAvatar)
   }, [address, open])
 
   // Scroll to bottom on new message
@@ -72,8 +75,8 @@ export function AIChat() {
       setMessages([{
         role: "assistant",
         content: isPremium
-          ? "Welcome. You have unlimited access. Ask anything about Arc Network, ArcSplitter fees, or how transactions work."
-          : `Welcome. You have ${5 - dailyCount} free messages today. Ask anything about Arc or ArcSplitter. Send 5 splits to unlock Premium.`,
+          ? `Welcome to ${BOT_NAME}. You have unlimited access. Ask anything about Arc Network, ArcSplitter fees, or how transactions work.`
+          : `Welcome to ${BOT_NAME}. You have ${5 - dailyCount} free messages today. Ask anything about Arc or ArcSplitter. Send 5 splits to unlock Premium.`,
       }])
     }
   }, [open, dailyCount, isPremium])
@@ -203,13 +206,21 @@ export function AIChat() {
         >
           {/* Header */}
           <div className="flex items-center gap-3 border-b border-border bg-muted/30 px-4 py-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground">
+            <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-foreground">
+            {botAvatar ? (
+              <img
+                src={botAvatar}
+                alt={`${BOT_NAME} avatar`}
+                className="h-full w-full object-cover"
+              />
+            ) : (
               <Bot className="h-4 w-4 text-background" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                ArcAssist
-                {isPremium && (
+            )}
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              {BOT_NAME}
+              {isPremium && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-[#ecfeff] px-2 py-0.5 text-[10px] text-[#067a7c] border border-[#00fdff]/30">
                     <Sparkles className="h-2.5 w-2.5" />
                     Premium

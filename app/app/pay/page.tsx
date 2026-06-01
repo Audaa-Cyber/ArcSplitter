@@ -1,12 +1,15 @@
 "use client"
 
 import * as React from "react"
-import { useSearchParams } from "next/navigation"
 import { SplitterCard } from "@/components/splitter-card"
 import { Link2 } from "lucide-react"
 
 export default function PayPage() {
-  const params = useSearchParams()
+  const [params, setParams] = React.useState(() => new URLSearchParams(""))
+
+  React.useEffect(() => {
+    setParams(new URLSearchParams(window.location.search))
+  }, [])
 
   const prefillMode = (params.get("mode") === "percentage" ? "percentage" : "fixed") as "fixed" | "percentage"
   const prefillTotal = params.get("total") ?? undefined

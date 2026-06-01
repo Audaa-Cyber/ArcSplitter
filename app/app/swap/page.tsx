@@ -5,9 +5,8 @@ import { useWallet } from "@/components/wallet-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { SWAP_CONTRACTS, SWAP_TOKENS, ARC_TESTNET } from "@/lib/arc-config"
-import { getSwapQuote, getEURCBalance, executeSwap, addLiquidity } from "@/lib/swap"
-import { parseUnits } from "viem"
-import { ArrowUpDown, Loader2, AlertTriangle, ExternalLink, Droplets, Settings } from "lucide-react"
+import { getSwapQuote, getEURCBalance, executeSwap } from "@/lib/swap"
+import { ArrowUpDown, Loader2, AlertTriangle, ExternalLink } from "lucide-react"
 import { toast } from "sonner"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
@@ -28,12 +27,6 @@ export default function SwapPage() {
   const [balanceIn, setBalanceIn] = React.useState("0.00")
   const [txHash, setTxHash] = React.useState<string | null>(null)
 
-  // liquidity state
-  const [showLiquidity, setShowLiquidity] = React.useState(false)
-  const [liqEURC, setLiqEURC] = React.useState("")
-  const [liqUSDC, setLiqUSDC] = React.useState("")
-  const [liqLoading, setLiqLoading] = React.useState(false)
-  const [liqTxHash, setLiqTxHash] = React.useState<string | null>(null)
   const [eurcBalance, setEurcBalance] = React.useState("0.00")
 
   React.useEffect(() => {
@@ -110,26 +103,6 @@ export default function SwapPage() {
     }
   }
 
-  async function handleAddLiquidity() {
-    if (!address || !provider || !liqEURC || !liqUSDC) return
-    setLiqLoading(true)
-    setLiqTxHash(null)
-    try {
-      toast.loading("Approving EURC...", { id: "liq" })
-      const hash = await addLiquidity(liqEURC, liqUSDC, provider, address as any)
-      setLiqTxHash(hash)
-      toast.success("Liquidity added successfully", { id: "liq" })
-      refreshBalance()
-      getEURCBalance(address as any).then(setEurcBalance)
-      setLiqEURC("")
-      setLiqUSDC("")
-    } catch (err: any) {
-      toast.error(err?.message || "Add liquidity failed", { id: "liq" })
-    } finally {
-      setLiqLoading(false)
-    }
-  }
-
   return (
     <div className="mx-auto max-w-lg space-y-4">
       {/* header */}
@@ -138,15 +111,6 @@ export default function SwapPage() {
           <h1 className="text-2xl font-bold tracking-tight">Swap</h1>
           <p className="text-sm text-muted-foreground">Arc Testnet Only</p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowLiquidity(!showLiquidity)}
-          className={cn("gap-2", showLiquidity && "border-primary text-primary")}
-        >
-          <Droplets className="h-4 w-4" />
-          {showLiquidity ? "Hide Liquidity" : "Add Liquidity"}
-        </Button>
       </div>
 
       {/* swap card */}
@@ -255,100 +219,6 @@ export default function SwapPage() {
         )}
       </div>
 
-      {/* liquidity card */}
-      {showLiquidity && (
-        <div className="rounded-2xl border border-border bg-card p-4 shadow-sm space-y-4">
-          <div>
-            <h2 className="font-semibold">Add Liquidity</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Add EURC + USDC to the pool. Ratio determines the swap rate.
-              Current EURC balance: {Number(eurcBalance).toFixed(4)}
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <div className="rounded-xl border border-border bg-muted/30 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-muted-foreground">EURC amount</span>
-                <button onClick={() => setLiqEURC(eurcBalance)} className="text-xs text-muted-foreground hover:text-foreground">
-                  Max: {Number(eurcBalance).toFixed(4)}
-                </button>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 shrink-0">
-                  <Image src="/tokens/eurc.png" alt="EURC" width={20} height={20} className="rounded-full" />
-                  <span className="text-sm font-medium">EURC</span>
-                </div>
-                <Input
-                  inputMode="decimal"
-                  placeholder="0.00"
-                  value={liqEURC}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/[^0-9.]/g, "")
-                    setLiqEURC(val)
-                    if (val && Number(val) > 0) {
-                      setLiqUSDC((Number(val) * 1.058).toFixed(6))
-                    }
-                  }}
-                  className="flex-1 border-0 bg-transparent text-right font-mono text-xl shadow-none focus-visible:ring-0"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-center">
-              <span className="text-xs text-muted-foreground">+</span>
-            </div>
-
-            <div className="rounded-xl border border-border bg-muted/30 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-muted-foreground">USDC amount</span>
-                <span className="text-xs text-muted-foreground">Balance: {Number(balance ?? 0).toFixed(4)}</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 shrink-0">
-                  <Image src="https://cryptologos.cc/logos/usd-coin-usdc-logo.svg?v=040" alt="USDC" width={20} height={20} className="rounded-full" />
-                  <span className="text-sm font-medium">USDC</span>
-                </div>
-                <Input
-                  inputMode="decimal"
-                  placeholder="0.00"
-                  value={liqUSDC}
-                  onChange={(e) => setLiqUSDC(e.target.value.replace(/[^0-9.]/g, ""))}
-                  className="flex-1 border-0 bg-transparent text-right font-mono text-xl shadow-none focus-visible:ring-0"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-lg bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-            Tip: To set rate to 1 EURC = 1.058 USDC, add them in a 1:1.058 ratio (e.g. 100 EURC + 105.8 USDC)
-          </div>
-
-          <Button
-            onClick={handleAddLiquidity}
-            disabled={!liqEURC || !liqUSDC || liqLoading || !address}
-            className="w-full h-11"
-            variant="outline"
-          >
-            {liqLoading ? (
-              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Adding Liquidity...</>
-            ) : (
-              <><Droplets className="mr-2 h-4 w-4" />Add Liquidity</>
-            )}
-          </Button>
-
-          {liqTxHash && (
-            <a
-              href={ARC_TESTNET.explorerUrl + "/tx/" + liqTxHash}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center justify-center gap-2 text-xs text-muted-foreground hover:text-foreground"
-            >
-              View transaction <ExternalLink className="h-3 w-3" />
-            </a>
-          )}
-        </div>
-      )}
     </div>
   )
 }
